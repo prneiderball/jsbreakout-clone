@@ -1,13 +1,20 @@
-// Ensure the canvas element is present
 const canvas = document.getElementById("myCanvas");
-if (!canvas) {
-  throw new Error("Canvas element not found!");
-}
 const ctx = canvas.getContext("2d");
 
-// ----------------------------------------------------
-// Key Handling: Using a simple key map for arrow keys
-// ----------------------------------------------------
+// Responsive scaling
+let canvasWidth = window.innerWidth * 0.8;
+let canvasHeight = window.innerHeight * 0.7;
+
+// Adjusted paddle & ball sizes based on screen width
+let paddleWidth, paddleHeight, paddleY, ballRadius;
+let brickRowCount,
+  brickColumnCount,
+  brickWidth,
+  brickHeight,
+  brickPadding,
+  brickOffsetTop,
+  brickOffsetLeft;
+
 const keys = {
   ArrowRight: false,
   ArrowLeft: false
@@ -24,83 +31,51 @@ document.addEventListener("keyup", (e) => {
   }
 });
 
-// ----------------------------------------------------
-// Game Entity Classes
-// ----------------------------------------------------
+// Responsive Resize Function
+function updateCanvasSize() {
+  canvasWidth = window.innerWidth * 0.8;
+  canvasHeight = window.innerHeight * 0.7;
+  canvas.width = canvasWidth;
+  canvas.height = canvasHeight;
 
-// Ball class with enhanced visual styling
-class Ball {
-  constructor(x, y, radius, dx, dy, color = "#f1c40f") {
-    this.x = x;
-    this.y = y;
-    this.radius = radius;
-    this.dx = dx;
-    this.dy = dy;
-    this.color = color;
-  }
+  // Adjust sizes proportionally
+  paddleWidth = canvasWidth * 0.15;
+  paddleHeight = 10;
+  paddleY = canvasHeight - paddleHeight - 10;
+  ballRadius = Math.max(canvasWidth * 0.015, 5);
 
-  draw(ctx) {
-    ctx.save();
-    ctx.shadowColor = "rgba(0,0,0,0.5)";
-    ctx.shadowBlur = 10;
-    ctx.beginPath();
-    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-    ctx.fillStyle = this.color;
-    ctx.fill();
-    ctx.closePath();
-    ctx.restore();
-  }
+  // Brick grid adjustments
+  brickRowCount = 5;
+  brickColumnCount = Math.floor(canvasWidth / 90); // Adjust brick count per row
+  brickWidth = canvasWidth / brickColumnCount - 10;
+  brickHeight = 20;
+  brickPadding = 10;
+  brickOffsetTop = 40;
+  brickOffsetLeft =
+    (canvasWidth - brickColumnCount * (brickWidth + brickPadding)) / 2;
 
-  update(canvas) {
-    // Bounce off the left and right walls
-    if (
-      this.x + this.dx > canvas.width - this.radius ||
-      this.x + this.dx < this.radius
-    ) {
-      this.dx = -this.dx;
-    }
-    // Bounce off the top wall
-    if (this.y + this.dy < this.radius) {
-      this.dy = -this.dy;
-    }
-    this.x += this.dx;
-    this.y += this.dy;
+  if (currentGame) {
+    currentGame.initBricks();
   }
 }
 
-// Paddle class with gradient fill and shadow
+// Paddle Class
 class Paddle {
-  constructor(x, y, width, height, speed = 7) {
-    this.x = x;
-    this.y = y;
-    this.width = width;
-    this.height = height;
-    this.speed = speed;
+  constructor() {
+    this.x = (canvasWidth - paddleWidth) / 2;
+    this.y = paddleY;
+    this.width = paddleWidth;
+    this.height = paddleHeight;
+    this.speed = 7;
   }
 
   draw(ctx) {
-    ctx.save();
-    ctx.shadowColor = "rgba(0,0,0,0.3)";
-    ctx.shadowBlur = 10;
-    ctx.beginPath();
-    ctx.rect(this.x, this.y, this.width, this.height);
-    // Create a gradient for the paddle
-    let paddleGradient = ctx.createLinearGradient(
-      this.x,
-      this.y,
-      this.x + this.width,
-      this.y + this.height
-    );
-    paddleGradient.addColorStop(0, "#2ecc71");
-    paddleGradient.addColorStop(1, "#27ae60");
-    ctx.fillStyle = paddleGradient;
-    ctx.fill();
-    ctx.closePath();
-    ctx.restore();
+    ctx.fillStyle = "#2ecc71";
+    ctx.fillRect(this.x, this.y, this.width, this.height);
   }
 
-  update(canvas, keys) {
-    if (keys.ArrowRight && this.x < canvas.width - this.width) {
+  update() {
+    if (keys.ArrowRight && this.x < canvasWidth - this.width) {
       this.x += this.speed;
     }
     if (keys.ArrowLeft && this.x > 0) {
@@ -109,129 +84,118 @@ class Paddle {
   }
 }
 
-// Brick class with gradient fill and a drop shadow effect
-class Brick {
-  constructor(x, y, width, height, status = 1) {
-    this.x = x;
-    this.y = y;
-    this.width = width;
-    this.height = height;
-    this.status = status;
+// Ball Class
+class Ball {
+  constructor() {
+    this.x = canvasWidth / 2;
+    this.y = canvasHeight - 30;
+    this.dx = 3;
+    this.dy = -3;
+    this.radius = ballRadius;
   }
 
   draw(ctx) {
-    if (this.status === 1) {
-      ctx.save();
-      ctx.shadowColor = "rgba(0,0,0,0.2)";
-      ctx.shadowBlur = 5;
-      // Create a gradient for the brick
-      let brickGradient = ctx.createLinearGradient(
-        this.x,
-        this.y,
-        this.x + this.width,
-        this.y + this.height
-      );
-      brickGradient.addColorStop(0, "#e74c3c");
-      brickGradient.addColorStop(1, "#c0392b");
-      ctx.fillStyle = brickGradient;
-      ctx.fillRect(this.x, this.y, this.width, this.height);
-      ctx.restore();
+    ctx.fillStyle = "#f1c40f";
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.closePath();
+  }
+
+  update() {
+    this.x += this.dx;
+    this.y += this.dy;
+
+    if (
+      this.x + this.dx > canvasWidth - this.radius ||
+      this.x + this.dx < this.radius
+    ) {
+      this.dx = -this.dx;
+    }
+    if (this.y + this.dy < this.radius) {
+      this.dy = -this.dy;
     }
   }
 }
 
-// ----------------------------------------------------
-// Game Settings and the Game Class
-// ----------------------------------------------------
-const ballRadius = 10;
-const initialBallX = canvas.width / 2;
-const initialBallY = canvas.height - 30;
-const initialDx = 3;
-const initialDy = -3;
+// Brick Class
+class Brick {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+    this.width = brickWidth;
+    this.height = brickHeight;
+    this.status = 1;
+  }
 
-const paddleHeight = 10;
-const paddleWidth = 75;
-const paddleY = canvas.height - paddleHeight;
+  draw(ctx) {
+    if (this.status === 1) {
+      ctx.fillStyle = "#e74c3c";
+      ctx.fillRect(this.x, this.y, this.width, this.height);
+    }
+  }
+}
 
-const brickRowCount = 5;
-const brickColumnCount = 7;
-const brickWidth = 75;
-const brickHeight = 20;
-const brickPadding = 10;
-const brickOffsetTop = 30;
-const brickOffsetLeft = 30;
-
+// Game Class
 class Game {
-  constructor(canvas, ctx) {
-    this.canvas = canvas;
-    this.ctx = ctx;
-    this.ball = new Ball(
-      initialBallX,
-      initialBallY,
-      ballRadius,
-      initialDx,
-      initialDy
-    );
-    this.paddle = new Paddle(
-      (canvas.width - paddleWidth) / 2,
-      paddleY,
-      paddleWidth,
-      paddleHeight
-    );
+  constructor() {
+    this.paddle = new Paddle();
+    this.ball = new Ball();
     this.bricks = [];
     this.gameOver = false;
+    this.score = 0;
     this.initBricks();
   }
 
-  // Initialize bricks with pre-calculated positions
   initBricks() {
+    this.bricks = [];
     for (let c = 0; c < brickColumnCount; c++) {
       this.bricks[c] = [];
       for (let r = 0; r < brickRowCount; r++) {
-        const brickX = c * (brickWidth + brickPadding) + brickOffsetLeft;
-        const brickY = r * (brickHeight + brickPadding) + brickOffsetTop;
-        this.bricks[c][r] = new Brick(brickX, brickY, brickWidth, brickHeight);
+        let brickX = c * (brickWidth + brickPadding) + brickOffsetLeft;
+        let brickY = r * (brickHeight + brickPadding) + brickOffsetTop;
+        this.bricks[c][r] = new Brick(brickX, brickY);
       }
     }
   }
 
-  // Draw a gradient background
-  drawBackground() {
-    const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    gradient.addColorStop(0, "#2c3e50");
-    gradient.addColorStop(1, "#3498db");
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-  }
-
-  // Check collision between the ball and the bricks
   collisionDetection() {
     for (let c = 0; c < brickColumnCount; c++) {
       for (let r = 0; r < brickRowCount; r++) {
-        const brick = this.bricks[c][r];
-        if (brick.status === 1) {
+        let b = this.bricks[c][r];
+        if (b.status === 1) {
           if (
-            this.ball.x > brick.x &&
-            this.ball.x < brick.x + brick.width &&
-            this.ball.y > brick.y &&
-            this.ball.y < brick.y + brick.height
+            this.ball.x > b.x &&
+            this.ball.x < b.x + b.width &&
+            this.ball.y > b.y &&
+            this.ball.y < b.y + b.height
           ) {
             this.ball.dy = -this.ball.dy;
-            brick.status = 0;
+            b.status = 0;
+            this.score += 10;
           }
         }
       }
     }
   }
 
-  // Update game logic
+  checkWin() {
+    for (let c = 0; c < brickColumnCount; c++) {
+      for (let r = 0; r < brickRowCount; r++) {
+        if (this.bricks[c][r].status === 1) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
   update() {
-    this.ball.update(this.canvas);
-    this.paddle.update(this.canvas, keys);
+    this.paddle.update();
+    this.ball.update();
     this.collisionDetection();
 
-    // Check collision between ball and paddle (or game over)
-    if (this.ball.y + this.ball.dy > this.canvas.height - this.ball.radius) {
+    if (this.ball.y + this.ball.dy > canvasHeight - this.ball.radius) {
       if (
         this.ball.x > this.paddle.x &&
         this.ball.x < this.paddle.x + this.paddle.width
@@ -241,59 +205,47 @@ class Game {
         this.gameOver = true;
       }
     }
+
+    if (this.checkWin()) {
+      this.gameOver = true;
+    }
   }
 
-  // Render all game entities with enhanced visuals
   draw() {
-    // Draw the gradient background first
-    this.drawBackground();
-
-    // Draw bricks
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+    this.paddle.draw(ctx);
+    this.ball.draw(ctx);
     for (let c = 0; c < brickColumnCount; c++) {
       for (let r = 0; r < brickRowCount; r++) {
-        this.bricks[c][r].draw(this.ctx);
+        this.bricks[c][r].draw(ctx);
       }
     }
-    // Draw ball and paddle
-    this.ball.draw(this.ctx);
-    this.paddle.draw(this.ctx);
+    ctx.fillStyle = "#fff";
+    ctx.font = "16px Arial";
+    ctx.fillText("Score: " + this.score, 8, 20);
   }
 
-  // The main game loop: update and render
   loop() {
     if (!this.gameOver) {
       this.update();
       this.draw();
       requestAnimationFrame(() => this.loop());
-    } else {
-      this.showGameOver();
     }
   }
 
-  // Display a simple Game Over message with styling
-  showGameOver() {
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    this.ctx.font = "bold 24px Arial";
-    this.ctx.fillStyle = "#f1c40f";
-    this.ctx.textAlign = "center";
-    this.ctx.fillText(
-      "Game Over",
-      this.canvas.width / 2,
-      this.canvas.height / 2
-    );
-  }
-
-  // Start the game loop
   start() {
     this.loop();
   }
 }
 
-// ----------------------------------------------------
-// Start the Game on Button Click
-// ----------------------------------------------------
+// Start & Restart Game
+let currentGame = null;
 document.getElementById("runButton").addEventListener("click", function () {
-  this.disabled = true; // Disable the run button once clicked
-  const game = new Game(canvas, ctx);
-  game.start();
+  this.disabled = true;
+  updateCanvasSize();
+  currentGame = new Game();
+  currentGame.start();
 });
+
+// Listen for window resize
+window.addEventListener("resize", updateCanvasSize);
