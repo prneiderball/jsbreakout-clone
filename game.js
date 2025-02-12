@@ -1,120 +1,98 @@
 const canvas = document.getElementById("myCanvas");
 const ctx = canvas.getContext("2d");
 
-// Responsive scaling
-let canvasWidth = window.innerWidth * 0.8;
-let canvasHeight = window.innerHeight * 0.7;
+const runButton = document.getElementById("runButton");
+const pauseButton = document.getElementById("pauseButton");
+const scoreDisplay = document.getElementById("scoreDisplay");
 
-// Adjusted paddle & ball sizes based on screen width
-let paddleWidth, paddleHeight, paddleY, ballRadius;
-let brickRowCount,
-  brickColumnCount,
-  brickWidth,
-  brickHeight,
-  brickPadding,
-  brickOffsetTop,
-  brickOffsetLeft;
+// Initially hide the pause button.
+pauseButton.style.display = "none";
 
-const keys = {
-  ArrowRight: false,
-  ArrowLeft: false
-};
+// Responsive Canvas
+function updateCanvasSize() {
+  canvas.width = window.innerWidth * 0.8;
+  canvas.height = window.innerHeight * 0.7;
 
+  // If a game is running, reset its dimensions.
+  game?.reset();
+}
+window.addEventListener("resize", updateCanvasSize);
+
+// Game State Variables
+let keys = { ArrowRight: false, ArrowLeft: false };
+let game = null;
+let isPaused = false;
+
+// Handle Key Events
 document.addEventListener("keydown", (e) => {
-  if (keys.hasOwnProperty(e.key)) {
-    keys[e.key] = true;
-  }
+  if (keys[e.key] !== undefined) keys[e.key] = true;
 });
 document.addEventListener("keyup", (e) => {
-  if (keys.hasOwnProperty(e.key)) {
-    keys[e.key] = false;
-  }
+  if (keys[e.key] !== undefined) keys[e.key] = false;
 });
-
-// Responsive Resize Function
-function updateCanvasSize() {
-  canvasWidth = window.innerWidth * 0.8;
-  canvasHeight = window.innerHeight * 0.7;
-  canvas.width = canvasWidth;
-  canvas.height = canvasHeight;
-
-  // Adjust sizes proportionally
-  paddleWidth = canvasWidth * 0.15;
-  paddleHeight = 10;
-  paddleY = canvasHeight - paddleHeight - 10;
-  ballRadius = Math.max(canvasWidth * 0.015, 5);
-
-  // Brick grid adjustments
-  brickRowCount = 5;
-  brickColumnCount = Math.floor(canvasWidth / 90); // Adjust brick count per row
-  brickWidth = canvasWidth / brickColumnCount - 10;
-  brickHeight = 20;
-  brickPadding = 10;
-  brickOffsetTop = 40;
-  brickOffsetLeft =
-    (canvasWidth - brickColumnCount * (brickWidth + brickPadding)) / 2;
-
-  if (currentGame) {
-    currentGame.initBricks();
-  }
-}
 
 // Paddle Class
 class Paddle {
   constructor() {
-    this.x = (canvasWidth - paddleWidth) / 2;
-    this.y = paddleY;
-    this.width = paddleWidth;
-    this.height = paddleHeight;
+    this.width = canvas.width * 0.15;
+    this.height = 10;
+    this.x = (canvas.width - this.width) / 2;
+    this.y = canvas.height - this.height - 10;
     this.speed = 7;
   }
 
-  draw(ctx) {
-    ctx.fillStyle = "#2ecc71";
-    ctx.fillRect(this.x, this.y, this.width, this.height);
+  move() {
+    if (keys.ArrowRight && this.x < canvas.width - this.width)
+      this.x += this.speed;
+    if (keys.ArrowLeft && this.x > 0) this.x -= this.speed;
   }
 
-  update() {
-    if (keys.ArrowRight && this.x < canvasWidth - this.width) {
-      this.x += this.speed;
-    }
-    if (keys.ArrowLeft && this.x > 0) {
-      this.x -= this.speed;
-    }
+  draw() {
+    ctx.save();
+    // Glow effect for the paddle
+    ctx.shadowColor = "#2ecc71";
+    ctx.shadowBlur = 15;
+    ctx.fillStyle = "#2ecc71";
+    ctx.fillRect(this.x, this.y, this.width, this.height);
+    ctx.restore();
   }
 }
 
 // Ball Class
 class Ball {
   constructor() {
-    this.x = canvasWidth / 2;
-    this.y = canvasHeight - 30;
-    this.dx = 3;
-    this.dy = -3;
-    this.radius = ballRadius;
+    this.radius = Math.max(canvas.width * 0.015, 5);
+    this.reset();
   }
 
-  draw(ctx) {
+  reset() {
+    this.x = canvas.width / 2;
+    this.y = canvas.height - 30;
+    this.dx = 3 * (Math.random() > 0.5 ? 1 : -1);
+    this.dy = -3;
+  }
+
+  move() {
+    this.x += this.dx;
+    this.y += this.dy;
+
+    // Bounce off left/right walls
+    if (this.x - this.radius < 0 || this.x + this.radius > canvas.width)
+      this.dx *= -1;
+    // Bounce off the top wall
+    if (this.y - this.radius < 0) this.dy *= -1;
+  }
+
+  draw() {
+    ctx.save();
+    // Glow effect for the ball
+    ctx.shadowColor = "#f1c40f";
+    ctx.shadowBlur = 15;
     ctx.fillStyle = "#f1c40f";
     ctx.beginPath();
     ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
     ctx.fill();
-    ctx.closePath();
-  }
-
-  update() {
-    this.x += this.dx;
-    this.y += this.dy;
-
-    if (
-      this.x + this.dx > canvasWidth - this.radius ||
-      this.x + this.dx < this.radius
-    ) {
-      this.dx = -this.dx;
-    }
-    if (this.y + this.dy < this.radius) {
-      this.dy = -this.dy;
-    }
+    ctx.restore();
   }
 }
 
@@ -123,12 +101,12 @@ class Brick {
   constructor(x, y) {
     this.x = x;
     this.y = y;
-    this.width = brickWidth;
-    this.height = brickHeight;
+    this.width = canvas.width / Math.floor(canvas.width / 90) - 10;
+    this.height = 20;
     this.status = 1;
   }
 
-  draw(ctx) {
+  draw() {
     if (this.status === 1) {
       ctx.fillStyle = "#e74c3c";
       ctx.fillRect(this.x, this.y, this.width, this.height);
@@ -142,87 +120,91 @@ class Game {
     this.paddle = new Paddle();
     this.ball = new Ball();
     this.bricks = [];
-    this.gameOver = false;
     this.score = 0;
+    this.gameOver = false;
     this.initBricks();
   }
 
   initBricks() {
     this.bricks = [];
-    for (let c = 0; c < brickColumnCount; c++) {
+    const columns = Math.floor(canvas.width / 90);
+    for (let c = 0; c < columns; c++) {
       this.bricks[c] = [];
-      for (let r = 0; r < brickRowCount; r++) {
-        let brickX = c * (brickWidth + brickPadding) + brickOffsetLeft;
-        let brickY = r * (brickHeight + brickPadding) + brickOffsetTop;
-        this.bricks[c][r] = new Brick(brickX, brickY);
+      for (let r = 0; r < 5; r++) {
+        this.bricks[c][r] = new Brick(
+          c * (this.bricks[c]?.[r - 1]?.width + 10),
+          r * (20 + 10) + 40
+        );
       }
     }
   }
 
-  collisionDetection() {
-    for (let c = 0; c < brickColumnCount; c++) {
-      for (let r = 0; r < brickRowCount; r++) {
-        let b = this.bricks[c][r];
-        if (b.status === 1) {
-          if (
-            this.ball.x > b.x &&
-            this.ball.x < b.x + b.width &&
-            this.ball.y > b.y &&
-            this.ball.y < b.y + b.height
-          ) {
-            this.ball.dy = -this.ball.dy;
-            b.status = 0;
-            this.score += 10;
-          }
+  reset() {
+    this.paddle = new Paddle();
+    this.ball = new Ball();
+    this.initBricks();
+    this.score = 0;
+    this.gameOver = false;
+    scoreDisplay.textContent = "Score: 0";
+  }
+
+  checkCollisions() {
+    // Check collision with bricks
+    this.bricks.forEach((col) =>
+      col.forEach((brick) => {
+        if (
+          brick.status === 1 &&
+          this.ball.x > brick.x &&
+          this.ball.x < brick.x + brick.width &&
+          this.ball.y > brick.y &&
+          this.ball.y < brick.y + brick.height
+        ) {
+          this.ball.dy *= -1;
+          brick.status = 0;
+          this.score += 10;
+          scoreDisplay.textContent = `Score: ${this.score}`;
         }
+      })
+    );
+
+    // Check collision with paddle
+    if (this.ball.y + this.ball.dy > canvas.height - this.ball.radius) {
+      if (
+        this.ball.x > this.paddle.x &&
+        this.ball.x < this.paddle.x + this.paddle.width
+      ) {
+        let angle =
+          (((this.ball.x - (this.paddle.x + this.paddle.width / 2)) /
+            this.paddle.width) *
+            Math.PI) /
+          3;
+        this.ball.dy = -Math.abs(this.ball.dy);
+        this.ball.dx = 5 * Math.sin(angle);
+      } else {
+        this.gameOver = true;
       }
     }
   }
 
   checkWin() {
-    for (let c = 0; c < brickColumnCount; c++) {
-      for (let r = 0; r < brickRowCount; r++) {
-        if (this.bricks[c][r].status === 1) {
-          return false;
-        }
-      }
-    }
-    return true;
+    // Win if all bricks are cleared.
+    return this.bricks.flat().every((brick) => brick.status === 0);
   }
 
   update() {
-    this.paddle.update();
-    this.ball.update();
-    this.collisionDetection();
+    if (this.gameOver || isPaused) return;
+    this.paddle.move();
+    this.ball.move();
+    this.checkCollisions();
 
-    if (this.ball.y + this.ball.dy > canvasHeight - this.ball.radius) {
-      if (
-        this.ball.x > this.paddle.x &&
-        this.ball.x < this.paddle.x + this.paddle.width
-      ) {
-        this.ball.dy = -this.ball.dy;
-      } else {
-        this.gameOver = true;
-      }
-    }
-
-    if (this.checkWin()) {
-      this.gameOver = true;
-    }
+    if (this.checkWin()) this.gameOver = true;
   }
 
   draw() {
-    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-    this.paddle.draw(ctx);
-    this.ball.draw(ctx);
-    for (let c = 0; c < brickColumnCount; c++) {
-      for (let r = 0; r < brickRowCount; r++) {
-        this.bricks[c][r].draw(ctx);
-      }
-    }
-    ctx.fillStyle = "#fff";
-    ctx.font = "16px Arial";
-    ctx.fillText("Score: " + this.score, 8, 20);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    this.paddle.draw();
+    this.ball.draw();
+    this.bricks.forEach((col) => col.forEach((brick) => brick.draw()));
   }
 
   loop() {
@@ -230,22 +212,41 @@ class Game {
       this.update();
       this.draw();
       requestAnimationFrame(() => this.loop());
+    } else {
+      alert("Game Over! Your Score: " + this.score);
+      // When the game ends, hide the pause button and show the start button.
+      pauseButton.style.display = "none";
+      runButton.style.display = "block";
     }
   }
 
   start() {
+    isPaused = false;
     this.loop();
+  }
+
+  togglePause() {
+    isPaused = !isPaused;
+    pauseButton.textContent = isPaused ? "Resume" : "Pause";
+    if (!isPaused) this.loop();
   }
 }
 
-// Start & Restart Game
-let currentGame = null;
-document.getElementById("runButton").addEventListener("click", function () {
-  this.disabled = true;
+// Event Listeners
+
+// Start Game: Hide start button and show pause button.
+runButton.addEventListener("click", () => {
+  runButton.style.display = "none";
+  pauseButton.style.display = "block";
   updateCanvasSize();
-  currentGame = new Game();
-  currentGame.start();
+  game = new Game();
+  game.start();
 });
 
-// Listen for window resize
-window.addEventListener("resize", updateCanvasSize);
+// Toggle Pause/Resume
+pauseButton.addEventListener("click", () => {
+  if (game) game.togglePause();
+});
+
+// Initialize the canvas size on load.
+updateCanvasSize();

@@ -1,3 +1,4 @@
+/* General Reset */
 * {
   padding: 0;
   margin: 0;
@@ -10,37 +11,100 @@ body {
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, #1e1e1e, #333);
+  background: radial-gradient(circle, #1a1a1a 40%, #111 100%);
   font-family: "Helvetica Neue", Arial, sans-serif;
+  color: #f5f5f5;
 }
 
+/* Game Canvas */
 canvas {
-  background: linear-gradient(145deg, #f5f5f5, #eee);
+  background: linear-gradient(145deg, #222, #444);
   display: block;
-  border: 2px solid #0095dd;
-  border-radius: 8px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  border: 3px solid #0095dd;
+  border-radius: 10px;
+  box-shadow: 0 0 15px rgba(0, 149, 221, 0.6),
+    0 0 25px rgba(0, 149, 221, 0.3) inset;
+  transition: box-shadow 0.3s ease-in-out;
 }
 
+/* Button Styling */
 button {
-  margin-top: 20px;
-  padding: 12px 24px;
-  font-size: 16px;
-  background: #0095dd;
+  margin: 15px 5px;
+  padding: 12px 28px;
+  font-size: 18px;
+  font-weight: bold;
+  background: linear-gradient(45deg, #0095dd, #00c3ff);
   color: #fff;
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
-  transition: background 0.3s ease, transform 0.3s ease;
+  transition: all 0.3s ease-in-out;
+  box-shadow: 0 3px 10px rgba(0, 149, 221, 0.5);
 }
 
 button:hover:not(:disabled) {
-  background: #007bb5;
-  transform: scale(1.05);
+  background: linear-gradient(45deg, #007bb5, #0095dd);
+  transform: translateY(-3px);
+  box-shadow: 0 5px 15px rgba(0, 149, 221, 0.7);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: 0 2px 5px rgba(0, 149, 221, 0.3);
 }
 
 button:disabled {
   background: #555;
   cursor: not-allowed;
-  opacity: 0.7;
+  opacity: 0.5;
+}
+
+/* Game Controls & Score UI */
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
+  margin-top: 15px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 10px 20px;
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
+}
+
+#scoreDisplay {
+  font-size: 20px;
+  font-weight: bold;
+  color: #00c3ff;
+  text-shadow: 0 0 10px rgba(0, 195, 255, 0.7);
+}
+
+#pausebutton {
+  display: none;
+}
+
+/* Paddle Glow Effect */
+@keyframes paddleGlow {
+  0% {
+    box-shadow: 0 0 5px rgba(46, 204, 113, 0.8);
+  }
+  50% {
+    box-shadow: 0 0 15px rgba(46, 204, 113, 1);
+  }
+  100% {
+    box-shadow: 0 0 5px rgba(46, 204, 113, 0.8);
+  }
+}
+
+/* Ball Pulse Effect */
+@keyframes ballPulse {
+  0% {
+    box-shadow: 0 0 5px rgba(241, 196, 15, 0.8);
+  }
+  50% {
+    box-shadow: 0 0 15px rgba(241, 196, 15, 1);
+  }
+  100% {
+    box-shadow: 0 0 5px rgba(241, 196, 15, 0.8);
+  }
 }
