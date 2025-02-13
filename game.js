@@ -1,3 +1,18 @@
+const GAME_CONSTANTS = {
+  PADDLE_SPEED: 7,
+  PADDLE_WIDTH_RATIO: 0.15,
+  PADDLE_HEIGHT: 10,
+  BALL_RADIUS_RATIO: 0.015,
+  BALL_MIN_RADIUS: 5,
+  BALL_INITIAL_SPEED: 3,
+  BRICK_ROWS: 5,
+  BRICK_SPACING: 10,
+  BRICK_HEIGHT: 20,
+  SCORE_PER_BRICK: 10,
+  CANVAS_WIDTH_RATIO: 0.8,
+  CANVAS_HEIGHT_RATIO: 0.7
+};
+
 const canvas = document.getElementById("myCanvas");
 const ctx = canvas.getContext("2d");
 
@@ -10,8 +25,9 @@ pauseButton.style.display = "none";
 
 // Responsive Canvas
 function updateCanvasSize() {
-  canvas.width = window.innerWidth * 0.8;
-  canvas.height = window.innerHeight * 0.7;
+  canvas.width = window.innerWidth * GAME_CONSTANTS.CANVAS_WIDTH_RATIO;
+  canvas.height = window.innerHeight * GAME_CONSTANTS.CANVAS_HEIGHT_RATIO;
+  game?.reset();
 
   // If a game is running, reset its dimensions.
   game?.reset();
@@ -34,11 +50,11 @@ document.addEventListener("keyup", (e) => {
 // Paddle Class
 class Paddle {
   constructor() {
-    this.width = canvas.width * 0.15;
-    this.height = 10;
+    this.width = canvas.width * GAME_CONSTANTS.PADDLE_WIDTH_RATIO;
+    this.height = GAME_CONSTANTS.PADDLE_HEIGHT;
     this.x = (canvas.width - this.width) / 2;
     this.y = canvas.height - this.height - 10;
-    this.speed = 7;
+    this.speed = GAME_CONSTANTS.PADDLE_SPEED;
   }
 
   move() {
@@ -61,15 +77,19 @@ class Paddle {
 // Ball Class
 class Ball {
   constructor() {
-    this.radius = Math.max(canvas.width * 0.015, 5);
+    this.radius = Math.max(
+      canvas.width * GAME_CONSTANTS.BALL_RADIUS_RATIO,
+      GAME_CONSTANTS.BALL_MIN_RADIUS
+    );
     this.reset();
   }
 
   reset() {
     this.x = canvas.width / 2;
-    this.y = canvas.height - 30;
-    this.dx = 3 * (Math.random() > 0.5 ? 1 : -1);
-    this.dy = -3;
+    this.y = canvas.height - 30; // Keep this for now, we'll address it later
+    this.dx =
+      GAME_CONSTANTS.BALL_INITIAL_SPEED * (Math.random() > 0.5 ? 1 : -1);
+    this.dy = -GAME_CONSTANTS.BALL_INITIAL_SPEED;
   }
 
   move() {
@@ -101,8 +121,10 @@ class Brick {
   constructor(x, y) {
     this.x = x;
     this.y = y;
-    this.width = canvas.width / Math.floor(canvas.width / 90) - 10;
-    this.height = 20;
+    this.width =
+      canvas.width / Math.floor(canvas.width / 90) -
+      GAME_CONSTANTS.BRICK_SPACING; // We'll refine this later
+    this.height = GAME_CONSTANTS.BRICK_HEIGHT;
     this.status = 1;
   }
 
@@ -149,7 +171,6 @@ class Game {
   }
 
   checkCollisions() {
-    // Check collision with bricks
     this.bricks.forEach((col) =>
       col.forEach((brick) => {
         if (
@@ -161,12 +182,11 @@ class Game {
         ) {
           this.ball.dy *= -1;
           brick.status = 0;
-          this.score += 10;
+          this.score += GAME_CONSTANTS.SCORE_PER_BRICK;
           scoreDisplay.textContent = `Score: ${this.score}`;
         }
       })
     );
-
     // Check collision with paddle
     if (this.ball.y + this.ball.dy > canvas.height - this.ball.radius) {
       if (
