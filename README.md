@@ -19,9 +19,9 @@ This project is licensed under the [MIT License](LICENSE).
 
 ## Author
 
-[Your Name]  
-[Your GitHub Profile](https://github.com/your-github-username)
+P.R. Neider-Ball 
+[Your GitHub Profile](https://github.com/prneiderball)
 
 ---
 
-Enjoy playing and customizing your Breakout clone!
+
