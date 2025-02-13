@@ -10,7 +10,8 @@ const GAME_CONSTANTS = {
   BRICK_HEIGHT: 20,
   SCORE_PER_BRICK: 10,
   CANVAS_WIDTH_RATIO: 0.8,
-  CANVAS_HEIGHT_RATIO: 0.7
+  CANVAS_HEIGHT_RATIO: 0.7,
+  BRICK_BASE_WIDTH: 90 // used to compute the number of brick columns
 };
 
 const canvas = document.getElementById("myCanvas");
@@ -23,21 +24,21 @@ const scoreDisplay = document.getElementById("scoreDisplay");
 // Initially hide the pause button.
 pauseButton.style.display = "none";
 
-// Responsive Canvas
+// Debounce canvas resize so it doesn’t trigger too many resets.
+let resizeTimeout;
 function updateCanvasSize() {
-  canvas.width = window.innerWidth * GAME_CONSTANTS.CANVAS_WIDTH_RATIO;
-  canvas.height = window.innerHeight * GAME_CONSTANTS.CANVAS_HEIGHT_RATIO;
-  game?.reset();
-
-  // If a game is running, reset its dimensions.
-  game?.reset();
+  if (resizeTimeout) clearTimeout(resizeTimeout);
+  resizeTimeout = setTimeout(() => {
+    canvas.width = window.innerWidth * GAME_CONSTANTS.CANVAS_WIDTH_RATIO;
+    canvas.height = window.innerHeight * GAME_CONSTANTS.CANVAS_HEIGHT_RATIO;
+    game?.reset();
+  }, 100);
 }
 window.addEventListener("resize", updateCanvasSize);
 
 // Game State Variables
 let keys = { ArrowRight: false, ArrowLeft: false };
 let game = null;
-let isPaused = false;
 
 // Handle Key Events
 document.addEventListener("keydown", (e) => {
@@ -58,14 +59,16 @@ class Paddle {
   }
 
   move() {
-    if (keys.ArrowRight && this.x < canvas.width - this.width)
+    if (keys.ArrowRight && this.x < canvas.width - this.width) {
       this.x += this.speed;
-    if (keys.ArrowLeft && this.x > 0) this.x -= this.speed;
+    }
+    if (keys.ArrowLeft && this.x > 0) {
+      this.x -= this.speed;
+    }
   }
 
   draw() {
     ctx.save();
-    // Glow effect for the paddle
     ctx.shadowColor = "#2ecc71";
     ctx.shadowBlur = 15;
     ctx.fillStyle = "#2ecc71";
@@ -86,7 +89,7 @@ class Ball {
 
   reset() {
     this.x = canvas.width / 2;
-    this.y = canvas.height - 30; // Keep this for now, we'll address it later
+    this.y = canvas.height - 30;
     this.dx =
       GAME_CONSTANTS.BALL_INITIAL_SPEED * (Math.random() > 0.5 ? 1 : -1);
     this.dy = -GAME_CONSTANTS.BALL_INITIAL_SPEED;
@@ -96,16 +99,18 @@ class Ball {
     this.x += this.dx;
     this.y += this.dy;
 
-    // Bounce off left/right walls
-    if (this.x - this.radius < 0 || this.x + this.radius > canvas.width)
+    // Bounce off left/right walls.
+    if (this.x - this.radius < 0 || this.x + this.radius > canvas.width) {
       this.dx *= -1;
-    // Bounce off the top wall
-    if (this.y - this.radius < 0) this.dy *= -1;
+    }
+    // Bounce off the top wall.
+    if (this.y - this.radius < 0) {
+      this.dy *= -1;
+    }
   }
 
   draw() {
     ctx.save();
-    // Glow effect for the ball
     ctx.shadowColor = "#f1c40f";
     ctx.shadowBlur = 15;
     ctx.fillStyle = "#f1c40f";
@@ -118,12 +123,10 @@ class Ball {
 
 // Brick Class
 class Brick {
-  constructor(x, y) {
+  constructor(x, y, width) {
     this.x = x;
     this.y = y;
-    this.width =
-      canvas.width / Math.floor(canvas.width / 90) -
-      GAME_CONSTANTS.BRICK_SPACING; // We'll refine this later
+    this.width = width;
     this.height = GAME_CONSTANTS.BRICK_HEIGHT;
     this.status = 1;
   }
@@ -144,19 +147,26 @@ class Game {
     this.bricks = [];
     this.score = 0;
     this.gameOver = false;
+    this.paused = false;
+    this.animationFrameId = null;
     this.initBricks();
+    // Bind the loop method once.
+    this.loop = this.loop.bind(this);
   }
 
   initBricks() {
     this.bricks = [];
-    const columns = Math.floor(canvas.width / 90);
+    const columns = Math.floor(canvas.width / GAME_CONSTANTS.BRICK_BASE_WIDTH);
+    const brickWidth = canvas.width / columns - GAME_CONSTANTS.BRICK_SPACING;
+    this.bricksRemaining = 0;
     for (let c = 0; c < columns; c++) {
       this.bricks[c] = [];
-      for (let r = 0; r < 5; r++) {
-        this.bricks[c][r] = new Brick(
-          c * (this.bricks[c]?.[r - 1]?.width + 10),
-          r * (20 + 10) + 40
-        );
+      for (let r = 0; r < GAME_CONSTANTS.BRICK_ROWS; r++) {
+        const x = c * (brickWidth + GAME_CONSTANTS.BRICK_SPACING);
+        const y =
+          r * (GAME_CONSTANTS.BRICK_HEIGHT + GAME_CONSTANTS.BRICK_SPACING) + 40;
+        this.bricks[c][r] = new Brick(x, y, brickWidth);
+        this.bricksRemaining++;
       }
     }
   }
@@ -167,39 +177,57 @@ class Game {
     this.initBricks();
     this.score = 0;
     this.gameOver = false;
+    this.paused = false;
     scoreDisplay.textContent = "Score: 0";
+    if (this.animationFrameId) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
+    this.loop();
   }
 
   checkCollisions() {
-    this.bricks.forEach((col) =>
-      col.forEach((brick) => {
+    // Cache ball properties for performance.
+    const ballX = this.ball.x,
+      ballY = this.ball.y,
+      ballRadius = this.ball.radius;
+
+    let collisionFound = false;
+    for (let c = 0; c < this.bricks.length && !collisionFound; c++) {
+      for (let r = 0; r < this.bricks[c].length; r++) {
+        const brick = this.bricks[c][r];
         if (
           brick.status === 1 &&
-          this.ball.x > brick.x &&
-          this.ball.x < brick.x + brick.width &&
-          this.ball.y > brick.y &&
-          this.ball.y < brick.y + brick.height
+          ballX > brick.x &&
+          ballX < brick.x + brick.width &&
+          ballY > brick.y &&
+          ballY < brick.y + brick.height
         ) {
           this.ball.dy *= -1;
           brick.status = 0;
           this.score += GAME_CONSTANTS.SCORE_PER_BRICK;
           scoreDisplay.textContent = `Score: ${this.score}`;
+          this.bricksRemaining--;
+          collisionFound = true; // exit both loops early
+          break;
         }
-      })
-    );
+      }
+    }
 
+    // Check collision with the paddle and bottom wall.
     if (this.ball.y + this.ball.dy > canvas.height - this.ball.radius) {
       if (
         this.ball.x > this.paddle.x &&
         this.ball.x < this.paddle.x + this.paddle.width
       ) {
-        let angle =
-          (((this.ball.x - (this.paddle.x + this.paddle.width / 2)) /
-            this.paddle.width) *
-            Math.PI) /
-          3;
+        const paddleCenter = this.paddle.x + this.paddle.width / 2;
+        const relativeIntersect = this.ball.x - paddleCenter;
+        const normalizedRelativeIntersect =
+          relativeIntersect / (this.paddle.width / 2);
+        const bounceAngle = normalizedRelativeIntersect * (Math.PI / 3); // max 60°
         this.ball.dy = -Math.abs(this.ball.dy);
-        this.ball.dx = 5 * Math.sin(angle);
+        this.ball.dx =
+          GAME_CONSTANTS.BALL_INITIAL_SPEED * Math.sin(bounceAngle);
       } else {
         this.gameOver = true;
       }
@@ -207,54 +235,64 @@ class Game {
   }
 
   checkWin() {
-    // Win if all bricks are cleared.
-    return this.bricks.flat().every((brick) => brick.status === 0);
+    return this.bricksRemaining === 0;
   }
 
   update() {
-    if (this.gameOver || isPaused) return;
+    if (this.gameOver || this.paused) return;
     this.paddle.move();
     this.ball.move();
     this.checkCollisions();
-
-    if (this.checkWin()) this.gameOver = true;
+    if (this.checkWin()) {
+      this.gameOver = true;
+    }
   }
 
   draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     this.paddle.draw();
     this.ball.draw();
-    this.bricks.forEach((col) => col.forEach((brick) => brick.draw()));
+    for (let c = 0; c < this.bricks.length; c++) {
+      for (let r = 0; r < this.bricks[c].length; r++) {
+        this.bricks[c][r].draw();
+      }
+    }
   }
 
   loop() {
-    if (!this.gameOver) {
-      this.update();
-      this.draw();
-      requestAnimationFrame(() => this.loop());
-    } else {
+    if (this.gameOver) {
       alert("Game Over! Your Score: " + this.score);
-      // When the game ends, hide the pause button and show the start button.
       pauseButton.style.display = "none";
       runButton.style.display = "block";
+      return;
+    }
+    if (!this.paused) {
+      this.update();
+      this.draw();
+      this.animationFrameId = requestAnimationFrame(this.loop);
     }
   }
 
   start() {
-    isPaused = false;
+    this.paused = false;
+    this.gameOver = false;
     this.loop();
   }
 
   togglePause() {
-    isPaused = !isPaused;
-    pauseButton.textContent = isPaused ? "Resume" : "Pause";
-    if (!isPaused) this.loop();
+    this.paused = !this.paused;
+    pauseButton.textContent = this.paused ? "Resume" : "Pause";
+    if (!this.paused) {
+      this.loop();
+    } else if (this.animationFrameId) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
   }
 }
 
 // Event Listeners
 
-// Start Game: Hide start button and show pause button.
 runButton.addEventListener("click", () => {
   runButton.style.display = "none";
   pauseButton.style.display = "block";
@@ -263,7 +301,6 @@ runButton.addEventListener("click", () => {
   game.start();
 });
 
-// Toggle Pause/Resume
 pauseButton.addEventListener("click", () => {
   if (game) game.togglePause();
 });
