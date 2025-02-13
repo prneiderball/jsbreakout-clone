@@ -4,7 +4,7 @@ const GAME_CONSTANTS = {
   PADDLE_HEIGHT: 10,
   BALL_RADIUS_RATIO: 0.015,
   BALL_MIN_RADIUS: 5,
-  BALL_INITIAL_SPEED: 3,
+  BALL_INITIAL_SPEED: 4,
   BRICK_ROWS: 5,
   BRICK_SPACING: 10,
   BRICK_HEIGHT: 20,
@@ -187,7 +187,7 @@ class Game {
         }
       })
     );
-    // Check collision with paddle
+
     if (this.ball.y + this.ball.dy > canvas.height - this.ball.radius) {
       if (
         this.ball.x > this.paddle.x &&
