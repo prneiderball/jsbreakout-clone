@@ -14,22 +14,22 @@ const GAME_CONSTANTS = {
   BRICK_BASE_WIDTH: 90
 };
 
-const backgroundMusic = new Audio("./audio/mainsong.mp3");
-backgroundMusic.loop = true;
-backgroundMusic.volume = 0.3;
-
 const canvas = document.getElementById("myCanvas");
 const ctx = canvas.getContext("2d");
-
 const runButton = document.getElementById("runButton");
 const pauseButton = document.getElementById("pauseButton");
 const scoreDisplay = document.getElementById("scoreDisplay");
 
-// Initially hide the pause button.
 pauseButton.style.display = "none";
 
-// Debounce canvas resize so it doesn’t trigger too many resets.
+const backgroundMusic = new Audio("./audio/mainsong.mp3");
+backgroundMusic.loop = true;
+backgroundMusic.volume = 0.3;
+
+let keys = { ArrowRight: false, ArrowLeft: false };
+let game = null;
 let resizeTimeout;
+
 function updateCanvasSize() {
   if (resizeTimeout) clearTimeout(resizeTimeout);
   resizeTimeout = setTimeout(() => {
@@ -38,13 +38,15 @@ function updateCanvasSize() {
     game?.reset();
   }, 100);
 }
+
+function preloadaudio(url) {
+  const audio = new Audio(url);
+  audio.preload = "auto";
+  return audio;
+}
+
 window.addEventListener("resize", updateCanvasSize);
 
-// Game State Variables
-let keys = { ArrowRight: false, ArrowLeft: false };
-let game = null;
-
-// Handle Key Events
 document.addEventListener("keydown", (e) => {
   if (keys[e.key] !== undefined) keys[e.key] = true;
 });
@@ -52,7 +54,6 @@ document.addEventListener("keyup", (e) => {
   if (keys[e.key] !== undefined) keys[e.key] = false;
 });
 
-// Paddle Class
 class Paddle {
   constructor() {
     this.width = canvas.width * GAME_CONSTANTS.PADDLE_WIDTH_RATIO;
@@ -61,7 +62,6 @@ class Paddle {
     this.y = canvas.height - this.height - 10;
     this.speed = GAME_CONSTANTS.PADDLE_SPEED;
   }
-
   move() {
     if (keys.ArrowRight && this.x < canvas.width - this.width) {
       this.x += this.speed;
@@ -70,7 +70,6 @@ class Paddle {
       this.x -= this.speed;
     }
   }
-
   draw() {
     ctx.save();
     ctx.shadowColor = "#2ecc71";
@@ -81,7 +80,6 @@ class Paddle {
   }
 }
 
-// Ball Class
 class Ball {
   constructor() {
     this.radius = Math.max(
@@ -90,7 +88,6 @@ class Ball {
     );
     this.reset();
   }
-
   reset() {
     this.x = canvas.width / 2;
     this.y = canvas.height - 30;
@@ -98,21 +95,16 @@ class Ball {
       GAME_CONSTANTS.BALL_INITIAL_SPEED * (Math.random() > 0.5 ? 1 : -1);
     this.dy = -GAME_CONSTANTS.BALL_INITIAL_SPEED;
   }
-
   move() {
     this.x += this.dx;
     this.y += this.dy;
-
-    // Bounce off left/right walls.
     if (this.x - this.radius < 0 || this.x + this.radius > canvas.width) {
       this.dx *= -1;
     }
-    // Bounce off the top wall.
     if (this.y - this.radius < 0) {
       this.dy *= -1;
     }
   }
-
   draw() {
     ctx.save();
     ctx.shadowColor = "#f1c40f";
@@ -125,7 +117,6 @@ class Ball {
   }
 }
 
-// Brick Class
 class Brick {
   constructor(x, y, width) {
     this.x = x;
@@ -134,7 +125,6 @@ class Brick {
     this.height = GAME_CONSTANTS.BRICK_HEIGHT;
     this.status = 1;
   }
-
   draw() {
     if (this.status === 1) {
       ctx.fillStyle = "#e74c3c";
@@ -143,7 +133,29 @@ class Brick {
   }
 }
 
-// Game Class
+class FloatingNumber {
+  constructor(x, y, value) {
+    this.x = x;
+    this.y = y;
+    this.value = value;
+    this.lifetime = 60;
+    this.opacity = 1;
+  }
+  update() {
+    this.y -= 1;
+    this.lifetime--;
+    this.opacity = this.lifetime / 60;
+  }
+  draw(ctx) {
+    ctx.save();
+    ctx.globalAlpha = this.opacity;
+    ctx.fillStyle = "#00c3ff";
+    ctx.font = "20px Arial";
+    ctx.fillText(this.value, this.x, this.y);
+    ctx.restore();
+  }
+}
+
 class Game {
   constructor() {
     this.paddle = new Paddle();
@@ -153,11 +165,10 @@ class Game {
     this.gameOver = false;
     this.paused = false;
     this.animationFrameId = null;
+    this.floatingNumbers = [];
     this.initBricks();
-    // Bind the loop method once.
     this.loop = this.loop.bind(this);
   }
-
   initBricks() {
     this.bricks = [];
     const columns = Math.floor(canvas.width / GAME_CONSTANTS.BRICK_BASE_WIDTH);
@@ -174,7 +185,6 @@ class Game {
       }
     }
   }
-
   reset() {
     this.paddle = new Paddle();
     this.ball = new Ball();
@@ -182,6 +192,7 @@ class Game {
     this.score = 0;
     this.gameOver = false;
     this.paused = false;
+    this.floatingNumbers = [];
     scoreDisplay.textContent = "Score: 0";
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId);
@@ -189,13 +200,10 @@ class Game {
     }
     this.loop();
   }
-
   checkCollisions() {
-    // Cache ball properties for performance.
     const ballX = this.ball.x,
       ballY = this.ball.y,
       ballRadius = this.ball.radius;
-
     let collisionFound = false;
     for (let c = 0; c < this.bricks.length && !collisionFound; c++) {
       for (let r = 0; r < this.bricks[c].length; r++) {
@@ -212,13 +220,14 @@ class Game {
           this.score += GAME_CONSTANTS.SCORE_PER_BRICK;
           scoreDisplay.textContent = `Score: ${this.score}`;
           this.bricksRemaining--;
-          collisionFound = true; // exit both loops early
+          this.floatingNumbers.push(
+            new FloatingNumber(brick.x, brick.y, GAME_CONSTANTS.SCORE_PER_BRICK)
+          );
+          collisionFound = true;
           break;
         }
       }
     }
-
-    // Check collision with the paddle and bottom wall.
     if (this.ball.y + this.ball.dy > canvas.height - this.ball.radius) {
       if (
         this.ball.x > this.paddle.x &&
@@ -228,7 +237,7 @@ class Game {
         const relativeIntersect = this.ball.x - paddleCenter;
         const normalizedRelativeIntersect =
           relativeIntersect / (this.paddle.width / 2);
-        const bounceAngle = normalizedRelativeIntersect * (Math.PI / 3); // max 60°
+        const bounceAngle = normalizedRelativeIntersect * (Math.PI / 3);
         this.ball.dy = -Math.abs(this.ball.dy);
         this.ball.dx =
           GAME_CONSTANTS.BALL_INITIAL_SPEED * Math.sin(bounceAngle);
@@ -237,21 +246,22 @@ class Game {
       }
     }
   }
-
   checkWin() {
     return this.bricksRemaining === 0;
   }
-
   update() {
     if (this.gameOver || this.paused) return;
     this.paddle.move();
     this.ball.move();
     this.checkCollisions();
+    this.floatingNumbers = this.floatingNumbers.filter((fn) => {
+      fn.update();
+      return fn.lifetime > 0;
+    });
     if (this.checkWin()) {
       this.gameOver = true;
     }
   }
-
   draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     this.paddle.draw();
@@ -261,8 +271,8 @@ class Game {
         this.bricks[c][r].draw();
       }
     }
+    this.floatingNumbers.forEach((fn) => fn.draw(ctx));
   }
-
   loop() {
     if (this.gameOver) {
       alert("Game Over! Your Score: " + this.score);
@@ -276,14 +286,12 @@ class Game {
       this.animationFrameId = requestAnimationFrame(this.loop);
     }
   }
-
   start() {
     this.paused = false;
     this.gameOver = false;
     this.loop();
     backgroundMusic.play();
   }
-
   togglePause() {
     this.paused = !this.paused;
     pauseButton.textContent = this.paused ? "Resume" : "Pause";
@@ -295,14 +303,6 @@ class Game {
     }
   }
 }
-
-function preloadaudio(url) {
-  const audio = new Audio(url);
-  audio.preload = "auto";
-  return audio;
-}
-
-// Event Listeners
 
 runButton.addEventListener("click", () => {
   runButton.style.display = "none";
@@ -316,5 +316,4 @@ pauseButton.addEventListener("click", () => {
   if (game) game.togglePause();
 });
 
-// Initialize the canvas size on load.
 updateCanvasSize();
