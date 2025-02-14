@@ -11,8 +11,12 @@ const GAME_CONSTANTS = {
   SCORE_PER_BRICK: 10,
   CANVAS_WIDTH_RATIO: 0.8,
   CANVAS_HEIGHT_RATIO: 0.7,
-  BRICK_BASE_WIDTH: 90 // used to compute the number of brick columns
+  BRICK_BASE_WIDTH: 90
 };
+
+const backgroundMusic = new Audio("./audio/mainsong.mp3");
+backgroundMusic.loop = true;
+backgroundMusic.volume = 0.3;
 
 const canvas = document.getElementById("myCanvas");
 const ctx = canvas.getContext("2d");
@@ -277,6 +281,7 @@ class Game {
     this.paused = false;
     this.gameOver = false;
     this.loop();
+    backgroundMusic.play();
   }
 
   togglePause() {
@@ -289,6 +294,12 @@ class Game {
       this.animationFrameId = null;
     }
   }
+}
+
+function preloadaudio(url) {
+  const audio = new Audio(url);
+  audio.preload = "auto";
+  return audio;
 }
 
 // Event Listeners
