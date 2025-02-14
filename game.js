@@ -150,7 +150,7 @@ class FloatingNumber {
     ctx.save();
     ctx.globalAlpha = this.opacity;
     ctx.fillStyle = "#00c3ff";
-    ctx.font = "20px Arial";
+    ctx.font = "20px helvetica";
     ctx.fillText(this.value, this.x, this.y);
     ctx.restore();
   }
