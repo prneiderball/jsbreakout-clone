@@ -26,6 +26,9 @@ const backgroundMusic = new Audio("./audio/mainsong.mp3");
 backgroundMusic.loop = true;
 backgroundMusic.volume = 0.3;
 
+const hitSound = new Audio("./audio/paddlehit.m4a");
+hitSound.volume = 0.3;
+
 let keys = { ArrowRight: false, ArrowLeft: false };
 let game = null;
 let resizeTimeout;
@@ -233,6 +236,8 @@ class Game {
         this.ball.x > this.paddle.x &&
         this.ball.x < this.paddle.x + this.paddle.width
       ) {
+        hitSound.currentTime = 0;
+        hitSound.play();
         const paddleCenter = this.paddle.x + this.paddle.width / 2;
         const relativeIntersect = this.ball.x - paddleCenter;
         const normalizedRelativeIntersect =
